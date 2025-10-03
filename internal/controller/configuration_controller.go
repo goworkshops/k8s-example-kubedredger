@@ -20,13 +20,18 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	workshopv1alpha1 "golab.io/kubedredger/api/v1alpha1"
 	"golab.io/kubedredger/internal/configfile"
+	"golab.io/kubedredger/internal/validate"
 )
 
 const (
@@ -50,6 +55,50 @@ type ConfigurationReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
 func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	lh := logf.FromContext(ctx)
+
+	conf := &workshopv1alpha1.Configuration{}
+	err := r.Get(ctx, req.NamespacedName, conf)
+	if err != nil {
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	err = validate.Request(conf.Spec)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if !conf.DeletionTimestamp.IsZero() {
+		// Deletion
+		if controllerutil.ContainsFinalizer(conf, Finalizer) {
+			if err := r.ConfMgr.Delete(conf.Spec.Filename); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete the configuration %q: %w", conf.Spec.Filename, err)
+			}
+			controllerutil.RemoveFinalizer(conf, Finalizer)
+			err = r.Update(ctx, conf)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add or Update
+	if !controllerutil.ContainsFinalizer(conf, Finalizer) {
+		controllerutil.AddFinalizer(conf, Finalizer)
+		err = r.Update(ctx, conf)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	configurationRequest := configurationRequestFromSpec(conf.Spec)
+
+	err = r.ConfMgr.HandleSync(lh, configurationRequest)
+	if errors.As(err, &configfile.NonRecoverableError{}) {
+		lh.Error(err, "Non-recoverable error handling configuration")
+		return ctrl.Result{}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
