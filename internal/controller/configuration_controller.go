@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -91,6 +92,7 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
+	oldStatus := conf.Status.DeepCopy()
 	configurationRequest := configurationRequestFromSpec(conf.Spec)
 
 	err = r.ConfMgr.HandleSync(lh, configurationRequest)
@@ -99,18 +101,17 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	r.ConfMgr.Status(configurationRequest.Filename)
+	confStatus := r.ConfMgr.Status(configurationRequest.Filename)
+	lh.Info("file status", "fileName", configurationRequest.Filename, "status", confStatus)
+	conf.Status = statusFromConfStatus(conf.Spec, confStatus, err)
 
-	// TODO: exercise: fill conf.Status
-	// you should update only the status part of the Configuration object. Use something like this:
-	/*
+	if !statusesAreEqual(oldStatus, &conf.Status) {
 		updErr := r.Client.Status().Update(ctx, conf)
 		if updErr != nil && !apierrors.IsNotFound(updErr) {
 			lh.Error(updErr, "Failed to update configuration status")
 			return ctrl.Result{}, fmt.Errorf("could not update status for object %s: %w", client.ObjectKeyFromObject(conf), updErr)
 		}
-	*/
-
+	}
 	return ctrl.Result{}, nil
 }
 
