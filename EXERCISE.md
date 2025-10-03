@@ -1,6 +1,6 @@
 # Kubebuilder Workshop Exercise
 
-Follow these steps to create a Kubernetes operator using Kubebuilder:
+Follow these steps to create a Kubernetes controller using Kubebuilder:
 
 ## 1. Download and Install Kubebuilder
 
@@ -25,6 +25,15 @@ Generate an API:
 ```bash
 kubebuilder create api --group workshop --version v1alpha1 \
 --kind Configuration
+```
+
+When asked, say yes to create resource and create controller:
+
+```bash
+INFO Create Resource [y/n]
+y
+INFO Create Controller [y/n]
+y
 ```
 
 ## 4. Explore the Project Structure
@@ -70,3 +79,7 @@ Regenerate the manifests one more time and observe the differences:
 ```bash
 make manifests
 ```
+
+## 10. Explore RBAC Annotations
+
+Check the RBAC annotations in `internal/controller/configuration_controller.go:36-38` and find the corresponding generated manifests that were created from these annotations.
