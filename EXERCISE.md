@@ -1,4 +1,4 @@
-# Kubebuilder Workshop Exercise
+# Exercise: Controller integration tests and e2e test(s)
 
 Create and run integration and e2e tests.
 This practice session can be quite long.
