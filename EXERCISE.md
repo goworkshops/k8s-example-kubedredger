@@ -1,6 +1,6 @@
 # Exercise: Implement the Configuration Controller
 
-## Part 1: Understand the API Structure
+## 1: Understand the API Structure
 
 First, familiarize yourself with the API structure by examining the `Configuration` custom resource definition:
 
@@ -8,7 +8,7 @@ First, familiarize yourself with the API structure by examining the `Configurati
 - Review the `ConfigurationSpec` field
 - Understand what data the controller will be working with
 
-## Part 2: Review the File Manager
+## 2: Review the File Manager
 
 The controller uses a file manager to handle configuration files on disk:
 
@@ -16,7 +16,7 @@ The controller uses a file manager to handle configuration files on disk:
 - This method will be called to create/update configuration files
 - Note that it takes a `ConfigRequest` with filename, content, create flag, and permissions
 
-## Part 3: Implement the Reconcile Logic
+## 3: Implement the Reconcile Logic
 
 Implement the add/update logic in your reconcile loop, in `internal/controller/configuration_controller.go`
 
@@ -36,7 +36,7 @@ After getting the Configuration object, implement the logic to:
 2. Update the status based on the result
 3. Return appropriate results
 
-## Part 4: Build and Deploy
+## 4: Build and Deploy
 
 Once you've implemented the controller logic:
 
@@ -62,7 +62,7 @@ docker exec kubedredger-kind-control-plane cat /tmp/config.d/golab.conf
 
 You should see the content from your Configuration resource written to the file!
 
-## Part 5 (Optional): Add Finalizer Support
+## 5 (Optional): Add Finalizer Support
 
 If you have time, implement proper deletion handling using a finalizer:
 
