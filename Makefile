@@ -233,9 +233,14 @@ $(GOLANGCI_LINT): dep-install-golangci-lint
 ##@ Workshop-specific helpers
 
 # extra deps
+
+.PHONY: run-test-e2e-golab
+run-test-e2e-golab:  ## Runs the workshop example e2e tests against an existing cluster
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2eworkshop/ -v -ginkgo.v
+
 .PHONY: test-e2e-golab
 test-e2e-golab: deploy-on-kind  ## Runs the workshop example e2e tests
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2eworkshop/ -v -ginkgo.v
+	$(MAKE) run-test-e2e-golab
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: deploy-on-kind
