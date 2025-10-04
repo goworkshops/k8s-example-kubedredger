@@ -27,6 +27,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -121,6 +122,189 @@ var _ = Describe("Configuration Controller", func() {
 				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
 
 				updatedConf := &workshopv1alpha1.Configuration{}
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+			})
+
+			It("updates the configuration once created", func(ctx context.Context) {
+				conf := &workshopv1alpha1.Configuration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: testNamespace.Name,
+						Name:      "test-create",
+					},
+					Spec: workshopv1alpha1.ConfigurationSpec{
+						Filename:   "bar2.conf",
+						Content:    "foo=bar\n",
+						Create:     true,
+						Permission: ptr.To[uint32](0600),
+					},
+				}
+				Expect(reconciler.Client.Create(ctx, conf)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(reconciler.Client.Delete(context.Background(), conf)).To(Succeed())
+				})
+
+				key := client.ObjectKeyFromObject(conf)
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				configPath := filepath.Join(configRoot, conf.Spec.Filename)
+				finfo, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo.Mode())).To(Equal(uint32(0600)), "error checking permissions, got %o expected %o", finfo.Mode(), 0600)
+
+				data, err := os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
+				updatedConf := &workshopv1alpha1.Configuration{}
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+
+				Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(conf), conf)).To(Succeed())
+				conf.Spec.Create = false
+				conf.Spec.Permission = nil
+				conf.Spec.Content = confSnippet
+				Expect(reconciler.Client.Update(ctx, conf)).To(Succeed())
+				_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				finfo2, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo2.Mode())).To(Equal(uint32(0644)), "error checking permissions, got %o expected %o", finfo2.Mode(), 0644)
+
+				data, err = os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+			})
+
+			It("does not create the same configuration file twice", func(ctx context.Context) {
+				origContent := "foo=bar\n"
+				conf := &workshopv1alpha1.Configuration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: testNamespace.Name,
+						Name:      "test-create",
+					},
+					Spec: workshopv1alpha1.ConfigurationSpec{
+						Filename:   "foo5.conf",
+						Content:    origContent,
+						Create:     true,
+						Permission: ptr.To[uint32](0600),
+					},
+				}
+				Expect(reconciler.Client.Create(ctx, conf)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(reconciler.Client.Delete(context.Background(), conf)).To(Succeed())
+				})
+
+				key := client.ObjectKeyFromObject(conf)
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				configPath := filepath.Join(configRoot, conf.Spec.Filename)
+				finfo, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo.Mode())).To(Equal(uint32(0600)), "error checking permissions, got %o expected %o", finfo.Mode(), 0600)
+
+				data, err := os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
+				updatedConf := &workshopv1alpha1.Configuration{}
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+
+				Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(conf), conf)).To(Succeed())
+				conf.Spec.Content = confSnippet
+				Expect(reconciler.Client.Update(ctx, conf)).To(Succeed())
+				_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				finfo2, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo2.Mode())).To(Equal(uint32(0600)), "error checking permissions, got %o expected %o", finfo2.Mode(), 0600)
+
+				data, err = os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(confSnippet), "configuration content doesn't match")
+
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+			})
+			It("updates the configuration once created multiple times", func(ctx context.Context) {
+				conf := &workshopv1alpha1.Configuration{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: testNamespace.Name,
+						Name:      "test-create",
+					},
+					Spec: workshopv1alpha1.ConfigurationSpec{
+						Filename:   "quux.conf",
+						Content:    "foo=bar\n",
+						Create:     true,
+						Permission: ptr.To[uint32](0600),
+					},
+				}
+
+				Expect(reconciler.Client.Create(ctx, conf)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(reconciler.Client.Delete(context.Background(), conf)).To(Succeed())
+				})
+
+				key := client.ObjectKeyFromObject(conf)
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				configPath := filepath.Join(configRoot, conf.Spec.Filename)
+				finfo, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo.Mode())).To(Equal(uint32(0600)), "error checking permissions, got %o expected %o", finfo.Mode(), 0600)
+
+				data, err := os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
+				updatedConf := &workshopv1alpha1.Configuration{}
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+
+				Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(conf), conf)).To(Succeed())
+				conf.Spec.Create = false
+				conf.Spec.Permission = nil
+				conf.Spec.Content = confSnippet
+				Expect(reconciler.Client.Update(ctx, conf)).To(Succeed())
+				_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				finfo2, err := os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo2.Mode())).To(Equal(uint32(0644)), "error checking permissions, got %o expected %o", finfo2.Mode(), 0644)
+
+				data, err = os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
+				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
+				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
+
+				Expect(reconciler.Client.Get(ctx, client.ObjectKeyFromObject(conf), conf)).To(Succeed())
+				conf.Spec.Create = false
+				conf.Spec.Permission = nil
+				conf.Spec.Content = "#answer=42\nattempts=2\nverify=always\n"
+				Expect(reconciler.Client.Update(ctx, conf)).To(Succeed())
+				_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+
+				finfo2, err = os.Stat(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error Stat()ing configuration file")
+				Expect(uint32(finfo2.Mode())).To(Equal(uint32(0644)), "error checking permissions, got %o expected %o", finfo2.Mode(), 0644)
+
+				data, err = os.ReadFile(configPath)
+				Expect(err).NotTo(HaveOccurred(), "error reading configuration file content")
+				Expect(string(data)).To(Equal(conf.Spec.Content), "configuration content doesn't match")
+
 				Expect(reconciler.Client.Get(ctx, key, updatedConf)).To(Succeed())
 				Expect(verifyAvailableStatus(&updatedConf.Status)).To(Succeed())
 			})
