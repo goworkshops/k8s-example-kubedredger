@@ -38,6 +38,24 @@ B. envtest, the environment on which controller integration test run,
    **does not support deletion of namespaces**. Just create and use a
    new namespace for each testcase 
 
+You may find these links useful
+- [ginkgo docs](https://onsi.github.io/ginkgo)
+- [gomega matchers](https://onsi.github.io/gomega/#making-assertions) aka "how do I do an assertion"?
+
+If you need some example matchers (assertions):
+```go
+Expect(someFunction("param")).To(Succeed()) // the function return error, expect nil error
+
+err := someOtherFunction(1, 2, 3)
+Expect(err).ToNot(HaveOccurred()) // another variant, expect no error
+
+var mapping map[string]string
+Expect(mapping).ToNot(BeNil()) // checking pointers
+
+int val:= 42
+Expect(val).To(Equal(42)) // checking equality
+```
+
 ## 3. (stretch) Familiarize with e2e tests using kind
 
 Try to run the existing e2e tests. These have a specific makefile target
