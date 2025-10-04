@@ -1,4 +1,4 @@
-# Kubebuilder Workshop Exercise
+# Exercise: Report Status, use conditions
 
 Follow these steps to implement status reporting:
 
